@@ -14,6 +14,7 @@ rsiVal  = ta.rsi(close, rsiLen)
 volMA   = ta.sma(volume, volLen)
 
 //Trend Conditions
+// Add any type of condition in here do it for other blocks 
 bullTrend = close > emaFast and emaFast > emaSlow
 bearTrend = close < emaFast and emaFast < emaSlow
 
