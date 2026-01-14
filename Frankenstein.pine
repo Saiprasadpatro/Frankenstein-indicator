@@ -1,41 +1,56 @@
 //@version=5
-indicator("Frankenstein", overlay=true)
+indicator("Frankenstein Ultimate Pro - ATM Logic", overlay=true)
 
-//Inputs
-emaFastLen = input.int(20, "Fast EMA")
-emaSlowLen = input.int(50, "Slow EMA")
-rsiLen     = input.int(14, "RSI Length")
-volLen     = input.int(20, "Volume MA Length")
+// ===== SETTINGS =====
+speedLen   = input.int(10, "Fast TEMA (Reaction)")
+trendLen   = input.int(80, "Global Trend (LSMA)")
+rrRatio    = input.float(1.5, "Risk:Reward Ratio")
+volMult    = input.float(1.2, "ATM Volatility Threshold")
 
-//Calculations
-emaFast = ta.ema(close, emaFastLen)
-emaSlow = ta.ema(close, emaSlowLen)
-rsiVal  = ta.rsi(close, rsiLen)
-volMA   = ta.sma(volume, volLen)
+// ===== 1. ZERO-LAG TEMA (The "Trigger") =====
+tema(src, len) =>
+    e1 = ta.ema(src, len)
+    e2 = ta.ema(e1, len)
+    e3 = ta.ema(e2, len)
+    3 * (e1 - e2) + e3
 
-//Trend Conditions
-// Add any type of condition in here do it for other blocks 
-bullTrend = close > emaFast and emaFast > emaSlow
-bearTrend = close < emaFast and emaFast < emaSlow
+fastTEMA = tema(close, speedLen)
 
-//Momentum Conditions
-bullMomentum = rsiVal >= 45 and rsiVal <= 65
-bearMomentum = rsiVal <= 55 and rsiVal >= 35
+// ===== 2. PREDICTIVE TREND (The "Filter") =====
+trendLSMA = ta.linreg(close, trendLen, 0)
 
-//Volume Confirmation
-volConfirm = volume > volMA
+// ===== 3. ATM-STYLE VOLATILITY FILTER =====
+atr = ta.atr(14)
+expectedMove = ta.sma(atr, 20) * volMult
+isVolatile = (high - low) > expectedMove
 
-//Entry Conditions
-longSignal  = bullTrend and bullMomentum and volConfirm and close > open
-shortSignal = bearTrend and bearMomentum and volConfirm and close < open
+// ===== 4. MOMENTUM DELTA =====
+rsi14 = ta.rsi(close, 14)
+stochK = ta.sma(ta.stoch(rsi14, rsi14, rsi14, 14), 3)
 
-//Plot EMAs
-plot(emaFast, color=color.orange, linewidth=2)
-plot(emaSlow, color=color.blue, linewidth=2)
+// ===== LIVE ENTRY LOGIC =====
+longSignal  = ta.crossover(close, fastTEMA) and close > trendLSMA and stochK < 80 and isVolatile
+shortSignal = ta.crossunder(close, fastTEMA) and close < trendLSMA and stochK > 20 and isVolatile
 
-//Plot Signals
-plotshape(longSignal, title="BUY", style=shape.triangleup,
-     location=location.belowbar, color=color.green, size=size.small)
+// ===== DYNAMIC RISK MANAGEMENT =====
+var float sl = na
+var float tp = na
 
-plotshape(shortSignal, title="SELL", style=shape.triangledown,
-     location=location.abovebar, color=color.red, size=size.small)
+if longSignal
+    sl := ta.lowest(low, 3) 
+    tp := close + (close - sl) * rrRatio
+    label.new(bar_index, low, "🚀 LIVE BUY\nTP: " + str.tostring(tp, "#.##"), yloc=yloc.belowbar, color=color.lime, style=label.style_label_up, size=size.small)
+
+if shortSignal
+    sl := ta.highest(high, 3)
+    tp := close - (sl - close) * rrRatio
+    label.new(bar_index, high, "📉 LIVE SELL\nTP: " + str.tostring(tp, "#.##"), yloc=yloc.abovebar, color=color.red, style=label.style_label_down, textcolor=color.white, size=size.small)
+
+// ===== PLOTTING =====
+lineColor = close > trendLSMA ? color.new(color.lime, 0) : color.new(color.red, 0)
+plot(trendLSMA, color=lineColor, linewidth=3, title="Trend Line")
+plot(fastTEMA, color=color.new(color.yellow, 0), linewidth=1, title="Fast Line")
+
+// Target/Stop Markers
+plot(longSignal or shortSignal ? tp : na, color=color.white, style=plot.style_cross, linewidth=2, title="Target")
+plot(longSignal or shortSignal ? sl : na, color=color.orange, style=plot.style_cross, linewidth=2, title="Stop")
