@@ -74,7 +74,7 @@ When a signal is produced the indicator plots:
 - Real-time BUY / SELL labels directly on candles
 - Zero-lag, color-coded trend visualization
 - Automatic Stop Loss based on recent swing structure
-- Dynamic Take Profit computed from user Risk:Reward
+- Dynamic Take Profit computed from user Risk:Reward, default Risk: Reward 1:5
 - Visual TP / SL markers at entry
 - No repainting behavior — historical signals remain fixed
 
